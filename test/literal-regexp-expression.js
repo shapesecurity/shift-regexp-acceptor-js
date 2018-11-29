@@ -17,8 +17,15 @@
 import { testRegexSuccess, testRegexFailure } from './helpers';
 
 suite('Parser', () => {
+
+  const preprocessRegexList = str => {
+    return str.split('\n')
+      .map(regex => regex.trim())
+      .map(regex => [regex.substring(regex.indexOf('/') + 1, regex.lastIndexOf('/')), regex.endsWith('/u')]);
+  };
+
   suite('literal regexp expression', () => {
-    const regexToPass = String.raw`/./
+    const regexToPass = preprocessRegexList(String.raw`/./
       /.|./
       /.||./
       /|/
@@ -151,8 +158,9 @@ suite('Parser', () => {
       /[${'\\153'}]/
       /[${'\\72'}]/
       /\k/
-      /t{5/`.split('\n').map(regex => regex.trim()).map(regex => [regex.substring(regex.indexOf('/') + 1, regex.lastIndexOf('/')), regex.endsWith('/u')]);
-    const regexToFail = String.raw`/[/
+      /t{5/
+      /[💩-💫]/u`);
+    const regexToFail = preprocessRegexList(String.raw`/[/
       /(?<=t|v|X|.|$||)/
       /(?<!t|v|X|.|$||)/
       /(?<=t|v|X|.|$||)/u
@@ -196,7 +204,7 @@ suite('Parser', () => {
       /${'\\uZZ'}/u
       /${'\\u'}{ZZ}/u
       /5{5,1G}/u
-      /\k/u`.split('\n').map(regex => regex.trim()).map(regex => [regex.substring(regex.indexOf('/') + 1, regex.lastIndexOf('/')), regex.endsWith('/u')]);
+      /\k/u`);
     regexToPass.forEach(args => testRegexSuccess(...args));
     regexToFail.forEach(args => testRegexFailure(...args));
   });
