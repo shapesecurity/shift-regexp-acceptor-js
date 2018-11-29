@@ -271,7 +271,7 @@ const acceptCharacterExcept = characters => state => {
   if (nextCodePoint === null || characters.indexOf(nextCodePoint) !== -1) {
     return { matched: false };
   }
-  state.skip(nextCodePoint.length);
+  state.skip(1);
   return { matched: true };
 };
 
@@ -464,7 +464,7 @@ const acceptCharacterClass = backtrackOnFailure(state => {
     if (nextCodePoint === null) {
       return { matched: false };
     }
-    localState.skip(nextCodePoint.length);
+    localState.skip(1);
     return { matched: true, value: nextCodePoint.codePointAt(0) };
   };
 

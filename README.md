@@ -14,7 +14,7 @@ This module provides a ECMA-262 regular expression [acceptor](https://en.wikiped
 ## Installation
 
 ```sh
-npm install shift-regexp
+npm install shift-regexp-acceptor
 ```
 
 
