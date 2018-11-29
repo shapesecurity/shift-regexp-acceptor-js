@@ -4,7 +4,7 @@ Shift Regexp Acceptor
 
 ## About
 
-This module provides a ECMA-262 regular expression [acceptor](https://en.wikipedia.org/wiki/Finite-state_machine#Acceptors_(recognizers)) for validation of regular expression literals for [ECMAScript 2016](https://www.ecma-international.org/ecma-262/7.0/#sec-regexp-regular-expression-objects), [Annex B](https://www.ecma-international.org/ecma-262/7.0/#sec-regular-expressions-patterns).
+This module provides a ECMA-262 regular expression [acceptor](https://en.wikipedia.org/wiki/Finite-state_machine#Acceptors_(recognizers)) for validation of regular expression literals for [ECMAScript 2016](https://www.ecma-international.org/ecma-262/9.0/#sec-regexp-regular-expression-objects), [Annex B](https://www.ecma-international.org/ecma-262/9.0/#sec-regular-expressions-patterns).
 
 ## Status
 

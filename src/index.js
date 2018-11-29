@@ -16,6 +16,10 @@
 
 /* eslint-disable no-use-before-define */
 
+import { utf16LonePropertyValues, utf16NonBinaryPropertyNames } from './unicode-properties';
+
+import { idContinueBool, idContinueLargeRegex, idStartBool, idStartLargeRegex } from './unicode';
+
 const syntaxCharacters = '^$\\.*+?()[]{}|'.split('');
 const extendedSyntaxCharacters = '^$.*+?()[|'.split('');
 
@@ -27,6 +31,13 @@ const hexDigits = '0123456789abcdefABCDEF'.split('');
 const decimalDigits = '0123456789'.split('');
 const octalDigits = '01234567'.split('');
 
+function isIdentifierStart(ch) {
+  return ch < 128 ? idStartBool[ch] : idStartLargeRegex.test(String.fromCodePoint(ch));
+}
+
+function isIdentifierPart(ch) {
+  return ch < 128 ? idContinueBool[ch] : idContinueLargeRegex.test(String.fromCodePoint(ch));
+}
 
 class PatternAcceptorState {
   constructor(pattern, unicode) {
@@ -34,6 +45,8 @@ class PatternAcceptorState {
     this.unicode = unicode;
     this.index = 0;
     this.backreferences = [];
+    this.backreferenceNames = [];
+    this.groupingNames = [];
     this.capturingGroups = 0;
   }
 
@@ -61,6 +74,53 @@ class PatternAcceptorState {
     }
     this.index += str.length;
     return true;
+  }
+
+  eatIdentifierStart() {
+    let characterValue;
+    let originalIndex = this.index;
+    if (this.match('\\u')) {
+      this.skip(1);
+      characterValue = acceptUnicodeEscape(this);
+      if (!characterValue.matched) {
+        this.index = originalIndex;
+        return null;
+      }
+      characterValue = characterValue.value;
+    } else {
+      characterValue = this.pattern.codePointAt(this.index);
+      this.index += String.fromCodePoint(characterValue).length;
+    }
+    let character = String.fromCodePoint(characterValue);
+    if (character === '_' || character === '$' || isIdentifierStart(characterValue)) {
+      return character;
+    }
+    this.index = originalIndex;
+    return null;
+  }
+
+  eatIdentifierPart() {
+    let characterValue;
+    let originalIndex = this.index;
+    if (this.match('\\u')) {
+      this.skip(1);
+      characterValue = acceptUnicodeEscape(this);
+      if (!characterValue.matched) {
+        this.index = originalIndex;
+        return null;
+      }
+      characterValue = characterValue.value;
+    } else {
+      characterValue = this.pattern.codePointAt(this.index);
+      this.index += String.fromCodePoint(characterValue).length;
+    }
+    let character = String.fromCodePoint(characterValue);
+    // ZWNJ / ZWJ
+    if (character === '\u200C' || character === '\u200D' || character === '$' || isIdentifierPart(characterValue)) {
+      return character;
+    }
+    this.index = originalIndex;
+    return null;
   }
 
   eatAny(...strs) {
@@ -105,9 +165,16 @@ class PatternAcceptorState {
 export default (pattern, { unicode = false } = {}) => {
   let state = new PatternAcceptorState(pattern, unicode);
   let accepted = acceptDisjunction(state);
-  if (accepted.matched && state.unicode) {
-    for (let backreference of state.backreferences) {
-      if (backreference > state.capturingGroups) {
+  if (accepted.matched) {
+    if (state.unicode) {
+      for (let backreference of state.backreferences) {
+        if (backreference > state.capturingGroups) {
+          return false;
+        }
+      }
+    }
+    for (let backreferenceName of state.backreferenceNames) {
+      if (state.groupingNames.indexOf(backreferenceName) === -1) {
         return false;
       }
     }
@@ -227,7 +294,10 @@ const acceptLabeledGroup = predicate => backtrackOnFailure(state => {
 const acceptQuantifiableAssertion = acceptLabeledGroup(state => !!state.eatAny('?=', '?!'));
 
 const acceptAssertion = state => {
-  return { matched: !!state.eatAny('^', '$', '\\b', '\\B') || acceptQuantifiableAssertion(state).matched };
+  if (state.eatAny('^', '$', '\\b', '\\B')) {
+    return { matched: true };
+  }
+  return acceptLabeledGroup(subState => subState.unicode ? !!subState.eatAny('?=', '?!', '?<=', '?<!') : !!subState.eatAny('?<=', '?<!'))(state);
 };
 
 const acceptDecimal = state => {
@@ -298,6 +368,7 @@ const acceptAtom = state => {
   let matched = anyOf(
     subState => ({ matched: !!subState.eat('.') }),
     backtrackOnFailure(subState => subState.eat('\\') ? acceptAtomEscape(subState) : { matched: false }),
+    backtrackOnFailure(subState => ({ matched: subState.eat('\\') && subState.match('c') })),
     acceptCharacterClass,
     acceptLabeledGroup(subState => subState.eat('?:')),
     acceptGrouping)(state);
@@ -309,8 +380,23 @@ const acceptAtom = state => {
 };
 
 const acceptGrouping = backtrackOnFailure(state => {
-  if (!state.eat('(') || !acceptDisjunction(state, ')').matched) {
+  if (!state.eat('(')) {
     return { matched: false };
+  }
+  let groupName = backtrackOnFailure(subState => {
+    if (!state.eat('?')) {
+      return { matched: false };
+    }
+    return acceptGroupName(subState);
+  })(state);
+  if (!acceptDisjunction(state, ')').matched) {
+    return { matched: false };
+  }
+  if (groupName.matched) {
+    if (state.groupingNames.indexOf(groupName.data) !== -1) {
+      return { matched: false };
+    }
+    state.groupingNames.push(groupName.data);
   }
   state.capturingGroups++;
   return { matched: true };
@@ -328,8 +414,59 @@ const acceptDecimalEscape = backtrackOnFailure(state => {
 });
 
 const acceptCharacterClassEscape = state => {
-  return { matched: !!state.eatAny('d', 'D', 's', 'S', 'w', 'W') };
+  if (state.eatAny('d', 'D', 's', 'S', 'w', 'W')) {
+    return { matched: true };
+  }
+  if (state.unicode) {
+    return backtrackOnFailure(subState => {
+      if (!subState.eat('p{') && !subState.eat('P{')) {
+        return { matched: false };
+      }
+      if (!acceptUnicodePropertyValueExpression(subState).matched) {
+        return { matched: false };
+      }
+      return { matched: !!subState.eat('}') };
+    })(state);
+  }
+  return { matched: false };
 };
+
+const acceptUnicodePropertyName = state => {
+  let characters = [];
+  let character;
+  while (character = state.eatAny(...controlCharacters, '_')) { // eslint-disable-line no-cond-assign
+    characters.push(character);
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+};
+
+const acceptUnicodePropertyValue = state => {
+  let characters = [];
+  let character;
+  while (character = state.eatAny(...controlCharacters, ...decimalDigits, '_')) { // eslint-disable-line no-cond-assign
+    characters.push(character);
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+};
+
+const acceptLoneUnicodePropertyNameOrValue = state => {
+  let loneValue = acceptUnicodePropertyValue(state);
+  return { matched: loneValue.matched && utf16LonePropertyValues.indexOf(loneValue.data) >= 0 };
+};
+
+const acceptUnicodePropertyValueExpression = state =>
+  anyOf(backtrackOnFailure(subState => {
+    let name = acceptUnicodePropertyName(subState);
+    if (!name.matched || !subState.eat('=')) {
+      return { matched: false };
+    }
+    let value = acceptUnicodePropertyValue(subState);
+    if (!value.matched) {
+      return { matched: false };
+    }
+    return { matched: name.data in utf16NonBinaryPropertyNames && utf16NonBinaryPropertyNames[name.data].indexOf(value.data) >= 0 };
+  }),
+  backtrackOnFailure(acceptLoneUnicodePropertyNameOrValue))(state);
 
 const acceptCharacterEscape = anyOf(
   state => {
@@ -419,10 +556,43 @@ const acceptCharacterEscape = anyOf(
   })
 );
 
+const acceptGroupNameBackreference = backtrackOnFailure(state => {
+  if (!state.eat('k')) {
+    return { matched: false };
+  }
+  let name = acceptGroupName(state);
+  if (!name.matched) {
+    return { matched: false };
+  }
+  state.backreferenceNames.push(name.data);
+  return { matched: true };
+});
+
+const acceptGroupName = backtrackOnFailure(state => {
+  if (!state.eat('<')) {
+    return { matched: false };
+  }
+  let characters = [];
+  let start = state.eatIdentifierStart();
+  if (!start) {
+    return { matched: false };
+  }
+  characters.push(start);
+  let part;
+  while (part = state.eatIdentifierPart()) { // eslint-disable-line no-cond-assign
+    characters.push(part);
+  }
+  if (!state.eat('>')) {
+    return { matched: false };
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+});
+
 const acceptAtomEscape = anyOf(
   acceptDecimalEscape,
   acceptCharacterClassEscape,
-  acceptCharacterEscape
+  acceptCharacterEscape,
+  acceptGroupNameBackreference
 );
 
 const acceptCharacterClass = backtrackOnFailure(state => {
