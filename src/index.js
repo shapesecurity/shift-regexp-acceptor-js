@@ -48,10 +48,8 @@ class PatternAcceptorState {
     return String.fromCodePoint(this.pattern.codePointAt(this.index));
   }
 
-  skip(n) {
-    for (let i = 0; i < n && this.index < this.pattern.length; i++) {
-      this.index += this.nextCodePoint().length;
-    }
+  skipCodePoint() {
+    this.index += this.nextCodePoint().length;
   }
 
   eat(str) {
@@ -271,7 +269,7 @@ const acceptCharacterExcept = characters => state => {
   if (nextCodePoint === null || characters.indexOf(nextCodePoint) !== -1) {
     return { matched: false };
   }
-  state.skip(1);
+  state.skipCodePoint();
   return { matched: true };
 };
 
@@ -411,7 +409,7 @@ const acceptCharacterEscape = anyOf(
     }
     let next = state.nextCodePoint();
     if (next !== null && next !== 'c') {
-      state.skip(1);
+      state.skipCodePoint();
       return { matched: true, value: next.codePointAt(0) };
     }
     return { matched: false };
@@ -464,7 +462,7 @@ const acceptCharacterClass = backtrackOnFailure(state => {
     if (nextCodePoint === null) {
       return { matched: false };
     }
-    localState.skip(1);
+    localState.skipCodePoint();
     return { matched: true, value: nextCodePoint.codePointAt(0) };
   };
 
