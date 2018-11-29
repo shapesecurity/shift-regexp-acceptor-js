@@ -18,13 +18,17 @@
 import acceptRegex from '..';
 
 export const testRegexSuccess = (source, unicode = false) => {
-  if (!acceptRegex(source, { unicode })) {
-    throw new Error(`Failed to accept RegEx: /${source}/${unicode ? 'u' : ''}`);
-  }
+  test('regex is accepted', () => {
+    if (!acceptRegex(source, { unicode })) {
+      throw new Error(`Failed to accept RegEx: /${source}/${unicode ? 'u' : ''}`);
+    }
+  });
 };
 
 export const testRegexFailure = (source, unicode = false) => {
-  if (acceptRegex(source, { unicode })) {
-    throw new Error(`Failed to fail RegEx: /${source}/${unicode ? 'u' : ''}`);
-  }
+  test('regex is not accepted', () => {
+    if (acceptRegex(source, { unicode })) {
+      throw new Error(`Failed to fail RegEx: /${source}/${unicode ? 'u' : ''}`);
+    }
+  });
 };
