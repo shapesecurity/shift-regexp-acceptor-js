@@ -17,7 +17,7 @@
 /* eslint-disable no-use-before-define */
 
 const syntaxCharacters = '^$\\.*+?()[]{}|'.split('');
-const extendedSyntaxCharacters = '^$\\.*+?()[|'.split('');
+const extendedSyntaxCharacters = '^$.*+?()[|'.split('');
 
 const controlEscapeCharacters = 'fnrtv'.split('');
 const controlEscapeCharacterValues = { 'f': '\f'.charCodeAt(0), 'n': '\n'.charCodeAt(0), 'r': '\r'.charCodeAt(0), 't': '\t'.charCodeAt(0), 'v': '\v'.charCodeAt(0) };

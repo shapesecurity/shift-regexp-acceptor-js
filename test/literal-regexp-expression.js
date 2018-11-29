@@ -160,7 +160,8 @@ suite('Parser', () => {
       /\k/
       /t{5/
       /[💩-💫]/u
-      /[\u{1F4A9}-\u{1F4AB}]/u`);
+      /[\u{1F4A9}-\u{1F4AB}]/u
+      /\c/`);
     const regexToFail = preprocessRegexList(String.raw`/[/
       /(?<=t|v|X|.|$||)/
       /(?<!t|v|X|.|$||)/
@@ -199,7 +200,6 @@ suite('Parser', () => {
       /\c/u
       /\k<X>/u
       /(?<X>)/u
-      /\c/
       /${'\\xZZ'}/u
       /\ud800${'\\uZZ'}/u
       /${'\\uZZ'}/u
