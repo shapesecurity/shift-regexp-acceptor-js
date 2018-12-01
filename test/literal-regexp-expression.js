@@ -176,7 +176,7 @@ suite('Parser', () => {
       /\k/
       /\k</
       /\k<x/
-      /\k<x>`);
+      /\k<x>/`);
     const regexToFail = preprocessRegexList(String.raw`/[/
       /(?<=t|v|X|.|$||)*/
       /(?<!t|v|X|.|$||)*/
