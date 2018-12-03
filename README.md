@@ -25,7 +25,7 @@ import acceptRegex from 'shift-regexp-acceptor';
 
 let isAccepted = acceptRegex('[a-z]+' /* source */); // unicode is assumed
 
-let isAccepted = acceptRegex('[a-z]+' /* source */, { unicode: false }; // unicode mode disabled
+let isAccepted = acceptRegex('[a-z]+' /* source */, { unicode: true }; // unicode mode enabled
 
 ```
 

@@ -99,7 +99,7 @@ class PatternAcceptorState {
 }
 
 // acceptRegex
-export default (pattern, { unicode = true } = {}) => {
+export default (pattern, { unicode = false } = {}) => {
   let state = new PatternAcceptorState(pattern, unicode);
   let accepted = acceptDisjunction(state);
   if (accepted.matched && state.unicode) {
