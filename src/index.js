@@ -45,7 +45,10 @@ class PatternAcceptorState {
     if (this.empty()) {
       return null;
     }
-    return String.fromCodePoint(this.pattern.codePointAt(this.index));
+    if (this.unicode) {
+      return String.fromCodePoint(this.pattern.codePointAt(this.index));
+    }
+    return this.pattern.charAt(this.index);
   }
 
   skipCodePoint() {
@@ -344,7 +347,7 @@ const acceptCharacterEscape = anyOf(
     if (character === null) {
       return { matched: false };
     }
-    return { matched: true, value: character.codePointAt(0) % 32 };
+    return { matched: true, value: character.charCodeAt(0) % 32 };
   }),
   backtrackOnFailure(state => {
     if (!state.eat('0') || state.eatAny(...decimalDigits)) {
@@ -395,7 +398,7 @@ const acceptCharacterEscape = anyOf(
     if (value === null) {
       return { matched: false };
     }
-    return { matched: true, value: value.codePointAt(0) };
+    return { matched: true, value: value.charCodeAt(0) };
   }),
   state => {
     if (!state.unicode || !state.eat('/')) {
@@ -433,33 +436,42 @@ const acceptCharacterClass = backtrackOnFailure(state => {
       return { matched: !!subState.eat('b'), value: 0x0008 };
     },
     subState => {
+      if (!subState.unicode) {
+        return { matched: false };
+      }
+      return acceptDecimalEscape(subState);
+    },
+    subState => {
       return { matched: subState.unicode && !!subState.eat('-'), value: '-'.charCodeAt(0) };
     },
     backtrackOnFailure(subState => {
       if (subState.unicode || !subState.eat('c')) {
         return { matched: false };
       }
-      let eaten = subState.eatAny(...decimalDigits, '_');
-      return { matched: !!eaten, value: eaten };
+      let character = subState.eatAny(...decimalDigits, '_');
+      if (character === null) {
+        return { matched: false };
+      }
+      return { matched: true, value: character.charCodeAt(0) % 32 };
     }),
     acceptCharacterClassEscape,
     acceptCharacterEscape
   );
 
   const acceptClassAtomNoDash = localState => {
-    if (localState.eat('\\')) {
-      return anyOf(
-        acceptClassEscape,
-        backtrackOnFailure(subState => {
-          if (subState.match('c')) {
-            return { matched: true, value: 0x005C }; // reverse solidus
-          }
-          return { matched: false };
-        })
-      )(localState);
+    if (localState.match('\\')) {
+      let ret = backtrackOnFailure(subState => {
+        subState.eat('\\');
+        return acceptClassEscape(subState);
+      })(localState);
+      if (ret.matched) {
+        return ret;
+      } else if (!localState.match('\\c') || localState.unicode) {
+        return { matched: false };
+      }
     }
     let nextCodePoint = localState.nextCodePoint();
-    if (nextCodePoint === null) {
+    if (nextCodePoint === null || nextCodePoint === ']' || nextCodePoint === '-') {
       return { matched: false };
     }
     localState.skipCodePoint();
@@ -468,7 +480,7 @@ const acceptCharacterClass = backtrackOnFailure(state => {
 
   const acceptClassAtom = localState => {
     if (localState.eat('-')) {
-      return { matched: true, value: '-'.codePointAt(0) };
+      return { matched: true, value: '-'.charCodeAt(0) };
     }
     return acceptClassAtomNoDash(localState);
   };
@@ -499,7 +511,6 @@ const acceptCharacterClass = backtrackOnFailure(state => {
       return { matched: true };
     }
     return acceptNonEmptyClassRangesNoDash(localState);
-
   };
 
   const acceptNonEmptyClassRanges = localState => {
