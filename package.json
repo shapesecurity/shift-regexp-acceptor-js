@@ -1,6 +1,6 @@
 {
   "name": "shift-regexp-acceptor",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Regexp acceptor for ECMAScript 2016",
   "author": "Shape Security",
   "homepage": "https://github.com/shapesecurity/shift-regexp-acceptor-js",
