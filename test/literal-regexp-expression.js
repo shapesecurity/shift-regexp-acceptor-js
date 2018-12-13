@@ -169,6 +169,8 @@ suite('Parser', () => {
       /(?<!t|v|X|.|$||)/u
       /(?<X>)/u
       /(?<X>)\k<X>/u
+      /(?<X>)/
+      /(?<X>)\k<X>/
       /\p{ASCII}/u
       /\P{ASCII}/u
       /\p{gc=LC}/u
