@@ -157,31 +157,40 @@ suite('Parser', () => {
       /[${'\\15'}]/
       /[${'\\153'}]/
       /[${'\\72'}]/
-      /\k/
       /t{5/
       /[💩-💫]/u
       /[\u{1F4A9}-\u{1F4AB}]/u
       /[\c0-\c9]/
       /\c/
-      /[\c]/`);
-    const regexToFail = preprocessRegexList(String.raw`/[/
+      /[\c]/
       /(?<=t|v|X|.|$||)/
       /(?<!t|v|X|.|$||)/
       /(?<=t|v|X|.|$||)/u
       /(?<!t|v|X|.|$||)/u
-      /(?=t|v|X|.|$||)*/u
-      /(?!t|v|X|.|$||)*/u
+      /(?<X>)/u
+      /(?<X>)\k<X>/u
+      /(?<X>)/
+      /(?<X>)\k<X>/
+      /\p{ASCII}/u
+      /\P{ASCII}/u
+      /\p{gc=LC}/u
+      /\P{gc=LC}/u
+      /\k/
+      /\k</
+      /\k<x/
+      /\k<x>/`);
+    const regexToFail = preprocessRegexList(String.raw`/[/
       /(?<=t|v|X|.|$||)*/
       /(?<!t|v|X|.|$||)*/
       /(?<=t|v|X|.|$||)*/u
       /(?<!t|v|X|.|$||)*/u
+      /(?=t|v|X|.|$||)*/u
+      /(?!t|v|X|.|$||)*/u
       /X{10,5}/
       /X{10,5}?/
       /${'\\123'}/u
       /${'\\1'}/u
       /${'\\2'}/u
-      /\p{ASCII}/u
-      /\P{ASCII}/u
       /${'\\u'}{110FFFF}/u
       /\L/u
       /[b-a]/
@@ -200,21 +209,29 @@ suite('Parser', () => {
       /[${'\\1'}]/u
       /[${'\\9'}]/u
       /\c/u
-      /\k<X>/u
-      /(?<X>)/u
       /${'\\xZZ'}/u
       /\ud800${'\\uZZ'}/u
       /${'\\uZZ'}/u
       /${'\\u'}{ZZ}/u
       /5{5,1G}/u
       /\k/u
+      /\k<X>/u
+      /(?<X>)(?<X>)/
+      /\p{ASCIIII}/u
+      /\p{gcc=LCC}/u
+      /\P{ASCIIII}/u
+      /\P{gcc=LCC}/u
       /[💫-💩]/u
       /[\u{1F4AB}-\u{1F4A9}]/u
       /[\c9-\c0]/
       /[\c]/u
       /[\c1]/u
       /[\c10]/u
-      /[🌷-🌸]/`);
+      /[🌷-🌸]/
+      /(?<a>a)\k/
+      /(?<a>a)\k</
+      /(?<a>a)\k<a/
+      /(?<a>a)\k<x>/`);
     regexToPass.forEach(args => testRegexSuccess(...args));
     regexToFail.forEach(args => testRegexFailure(...args));
   });

@@ -16,8 +16,12 @@
 
 /* eslint-disable no-use-before-define */
 
+import { utf16LonePropertyValues, utf16NonBinaryPropertyNames } from './unicode-properties';
+
+import { idContinueBool, idContinueLargeRegex, idStartBool, idStartLargeRegex } from './unicode';
+
 const syntaxCharacters = '^$\\.*+?()[]{}|'.split('');
-const extendedSyntaxCharacters = '^$.*+?()[|'.split('');
+const extendedSyntaxCharacters = '^$\\.*+?()[|'.split('');
 
 const controlEscapeCharacters = 'fnrtv'.split('');
 const controlEscapeCharacterValues = { 'f': '\f'.charCodeAt(0), 'n': '\n'.charCodeAt(0), 'r': '\r'.charCodeAt(0), 't': '\t'.charCodeAt(0), 'v': '\v'.charCodeAt(0) };
@@ -27,6 +31,15 @@ const hexDigits = '0123456789abcdefABCDEF'.split('');
 const decimalDigits = '0123456789'.split('');
 const octalDigits = '01234567'.split('');
 
+const INVALID_NAMED_BACKREFERENCE_SENTINEL = { INVALID_NAMED_BACKREFERENCE_SENTINE: true };
+
+function isIdentifierStart(ch) {
+  return ch < 128 ? idStartBool[ch] : idStartLargeRegex.test(String.fromCodePoint(ch));
+}
+
+function isIdentifierPart(ch) {
+  return ch < 128 ? idContinueBool[ch] : idContinueLargeRegex.test(String.fromCodePoint(ch));
+}
 
 class PatternAcceptorState {
   constructor(pattern, unicode) {
@@ -34,6 +47,8 @@ class PatternAcceptorState {
     this.unicode = unicode;
     this.index = 0;
     this.backreferences = [];
+    this.backreferenceNames = [];
+    this.groupingNames = [];
     this.capturingGroups = 0;
   }
 
@@ -61,6 +76,60 @@ class PatternAcceptorState {
     }
     this.index += str.length;
     return true;
+  }
+
+  eatIdentifierCodePoint() {
+    let characterValue;
+    let originalIndex = this.index;
+    let character;
+    if (this.match('\\u')) {
+      this.skipCodePoint();
+      characterValue = acceptUnicodeEscape(this);
+      if (!characterValue.matched) {
+        this.index = originalIndex;
+        return null;
+      }
+      characterValue = characterValue.value;
+      character = String.fromCodePoint(characterValue);
+    } else {
+      character = this.nextCodePoint();
+      if (character == null) {
+        this.index = originalIndex;
+        return null;
+      }
+      this.index += character.length;
+      characterValue = character.codePointAt(0);
+    }
+    return { character, characterValue };
+  }
+
+  eatIdentifierStart() {
+    let originalIndex = this.index;
+    let codePoint = this.eatIdentifierCodePoint();
+    if (codePoint === null) {
+      this.index = originalIndex;
+      return null;
+    }
+    if (codePoint.character === '_' || codePoint.character === '$' || isIdentifierStart(codePoint.characterValue)) {
+      return codePoint.character;
+    }
+    this.index = originalIndex;
+    return null;
+  }
+
+  eatIdentifierPart() {
+    let originalIndex = this.index;
+    let codePoint = this.eatIdentifierCodePoint();
+    if (codePoint === null) {
+      this.index = originalIndex;
+      return null;
+    }
+    // ZWNJ / ZWJ
+    if (codePoint.character === '\u200C' || codePoint.character === '\u200D' || codePoint.character === '$' || isIdentifierPart(codePoint.characterValue)) {
+      return codePoint.character;
+    }
+    this.index = originalIndex;
+    return null;
   }
 
   eatAny(...strs) {
@@ -105,10 +174,19 @@ class PatternAcceptorState {
 export default (pattern, { unicode = false } = {}) => {
   let state = new PatternAcceptorState(pattern, unicode);
   let accepted = acceptDisjunction(state);
-  if (accepted.matched && state.unicode) {
-    for (let backreference of state.backreferences) {
-      if (backreference > state.capturingGroups) {
-        return false;
+  if (accepted.matched) {
+    if (state.unicode) {
+      for (let backreference of state.backreferences) {
+        if (backreference > state.capturingGroups) {
+          return false;
+        }
+      }
+    }
+    if (state.groupingNames.length > 0 || state.unicode) {
+      for (let backreferenceName of state.backreferenceNames) {
+        if (state.groupingNames.indexOf(backreferenceName) === -1) {
+          return false;
+        }
       }
     }
   }
@@ -227,7 +305,10 @@ const acceptLabeledGroup = predicate => backtrackOnFailure(state => {
 const acceptQuantifiableAssertion = acceptLabeledGroup(state => !!state.eatAny('?=', '?!'));
 
 const acceptAssertion = state => {
-  return { matched: !!state.eatAny('^', '$', '\\b', '\\B') || acceptQuantifiableAssertion(state).matched };
+  if (state.eatAny('^', '$', '\\b', '\\B')) {
+    return { matched: true };
+  }
+  return acceptLabeledGroup(subState => subState.unicode ? !!subState.eatAny('?=', '?!', '?<=', '?<!') : !!subState.eatAny('?<=', '?<!'))(state);
 };
 
 const acceptDecimal = state => {
@@ -298,6 +379,7 @@ const acceptAtom = state => {
   let matched = anyOf(
     subState => ({ matched: !!subState.eat('.') }),
     backtrackOnFailure(subState => subState.eat('\\') ? acceptAtomEscape(subState) : { matched: false }),
+    backtrackOnFailure(subState => ({ matched: subState.eat('\\') && subState.match('c') })),
     acceptCharacterClass,
     acceptLabeledGroup(subState => subState.eat('?:')),
     acceptGrouping)(state);
@@ -309,8 +391,23 @@ const acceptAtom = state => {
 };
 
 const acceptGrouping = backtrackOnFailure(state => {
-  if (!state.eat('(') || !acceptDisjunction(state, ')').matched) {
+  if (!state.eat('(')) {
     return { matched: false };
+  }
+  let groupName = backtrackOnFailure(subState => {
+    if (!state.eat('?')) {
+      return { matched: false };
+    }
+    return acceptGroupName(subState);
+  })(state);
+  if (!acceptDisjunction(state, ')').matched) {
+    return { matched: false };
+  }
+  if (groupName.matched) {
+    if (state.groupingNames.indexOf(groupName.data) !== -1) {
+      return { matched: false };
+    }
+    state.groupingNames.push(groupName.data);
   }
   state.capturingGroups++;
   return { matched: true };
@@ -328,8 +425,59 @@ const acceptDecimalEscape = backtrackOnFailure(state => {
 });
 
 const acceptCharacterClassEscape = state => {
-  return { matched: !!state.eatAny('d', 'D', 's', 'S', 'w', 'W') };
+  if (state.eatAny('d', 'D', 's', 'S', 'w', 'W')) {
+    return { matched: true };
+  }
+  if (state.unicode) {
+    return backtrackOnFailure(subState => {
+      if (!subState.eat('p{') && !subState.eat('P{')) {
+        return { matched: false };
+      }
+      if (!acceptUnicodePropertyValueExpression(subState).matched) {
+        return { matched: false };
+      }
+      return { matched: !!subState.eat('}') };
+    })(state);
+  }
+  return { matched: false };
 };
+
+const acceptUnicodePropertyName = state => {
+  let characters = [];
+  let character;
+  while (character = state.eatAny(...controlCharacters, '_')) { // eslint-disable-line no-cond-assign
+    characters.push(character);
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+};
+
+const acceptUnicodePropertyValue = state => {
+  let characters = [];
+  let character;
+  while (character = state.eatAny(...controlCharacters, ...decimalDigits, '_')) { // eslint-disable-line no-cond-assign
+    characters.push(character);
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+};
+
+const acceptLoneUnicodePropertyNameOrValue = state => {
+  let loneValue = acceptUnicodePropertyValue(state);
+  return { matched: loneValue.matched && utf16LonePropertyValues.indexOf(loneValue.data) >= 0 };
+};
+
+const acceptUnicodePropertyValueExpression = state =>
+  anyOf(backtrackOnFailure(subState => {
+    let name = acceptUnicodePropertyName(subState);
+    if (!name.matched || !subState.eat('=')) {
+      return { matched: false };
+    }
+    let value = acceptUnicodePropertyValue(subState);
+    if (!value.matched) {
+      return { matched: false };
+    }
+    return { matched: name.data in utf16NonBinaryPropertyNames && utf16NonBinaryPropertyNames[name.data].indexOf(value.data) >= 0 };
+  }),
+  backtrackOnFailure(acceptLoneUnicodePropertyNameOrValue))(state);
 
 const acceptCharacterEscape = anyOf(
   state => {
@@ -411,7 +559,7 @@ const acceptCharacterEscape = anyOf(
       return { matched: false };
     }
     let next = state.nextCodePoint();
-    if (next !== null && next !== 'c') {
+    if (next !== null && next !== 'c' && next !== 'k') {
       state.skipCodePoint();
       return { matched: true, value: next.codePointAt(0) };
     }
@@ -419,10 +567,44 @@ const acceptCharacterEscape = anyOf(
   })
 );
 
+const acceptGroupNameBackreference = backtrackOnFailure(state => {
+  if (!state.eat('k')) {
+    return { matched: false };
+  }
+  let name = acceptGroupName(state);
+  if (!name.matched) {
+    state.backreferenceNames.push(INVALID_NAMED_BACKREFERENCE_SENTINEL);
+    return { matched: true };
+  }
+  state.backreferenceNames.push(name.data);
+  return { matched: true };
+});
+
+const acceptGroupName = backtrackOnFailure(state => {
+  if (!state.eat('<')) {
+    return { matched: false };
+  }
+  let characters = [];
+  let start = state.eatIdentifierStart();
+  if (!start) {
+    return { matched: false };
+  }
+  characters.push(start);
+  let part;
+  while (part = state.eatIdentifierPart()) { // eslint-disable-line no-cond-assign
+    characters.push(part);
+  }
+  if (!state.eat('>')) {
+    return { matched: false };
+  }
+  return { matched: characters.length > 0, data: characters.join('') };
+});
+
 const acceptAtomEscape = anyOf(
   acceptDecimalEscape,
   acceptCharacterClassEscape,
-  acceptCharacterEscape
+  acceptCharacterEscape,
+  acceptGroupNameBackreference
 );
 
 const acceptCharacterClass = backtrackOnFailure(state => {
@@ -459,23 +641,20 @@ const acceptCharacterClass = backtrackOnFailure(state => {
   );
 
   const acceptClassAtomNoDash = localState => {
-    if (localState.match('\\')) {
-      let ret = backtrackOnFailure(subState => {
-        subState.eat('\\');
-        return acceptClassEscape(subState);
-      })(localState);
-      if (ret.matched) {
-        return ret;
-      } else if (!localState.match('\\c') || localState.unicode) {
-        return { matched: false };
-      }
-    }
     let nextCodePoint = localState.nextCodePoint();
-    if (nextCodePoint === null || nextCodePoint === ']' || nextCodePoint === '-') {
+    if (nextCodePoint === ']' || nextCodePoint === '-' || nextCodePoint === null) {
       return { matched: false };
     }
-    localState.skipCodePoint();
-    return { matched: true, value: nextCodePoint.codePointAt(0) };
+    if (nextCodePoint !== '\\') {
+      localState.skipCodePoint();
+      return { matched: true, value: nextCodePoint.codePointAt(0) };
+    }
+    localState.eat('\\');
+    let classEscape = acceptClassEscape(localState);
+    if (!classEscape.matched && localState.nextCodePoint() === 'c' && !localState.unicode) {
+      return { matched: true, value: '\\'.charCodeAt(0) };
+    }
+    return classEscape;
   };
 
   const acceptClassAtom = localState => {
