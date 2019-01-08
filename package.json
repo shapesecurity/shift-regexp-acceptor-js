@@ -18,6 +18,11 @@
     "prepare": "rm -rf dist && npm run build",
     "lint": "eslint src test"
   },
+  "dependencies": {
+    "unicode-match-property-value-ecmascript": "1.0.2",
+    "unicode-match-property-ecmascript": "1.0.4",
+    "unicode-property-aliases-ecmascript": "1.0.4"
+  },
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-eslint": "10.0.1",
