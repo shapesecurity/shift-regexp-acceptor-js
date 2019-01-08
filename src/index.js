@@ -16,9 +16,21 @@
 
 /* eslint-disable no-use-before-define */
 
-import { utf16LonePropertyValues, utf16NonBinaryPropertyNames } from './unicode-properties';
+import matchPropertyValue from 'unicode-match-property-value-ecmascript';
+
+import matchProperty from 'unicode-match-property-ecmascript';
+
+import propertyAliases from 'unicode-property-aliases-ecmascript';
 
 import { idContinueBool, idContinueLargeRegex, idStartBool, idStartLargeRegex } from './unicode';
+
+const catchIsFalse = predicate => {
+  try {
+    return !!predicate();
+  } catch (e) {
+    return false;
+  }
+};
 
 const syntaxCharacters = '^$\\.*+?()[]{}|'.split('');
 const extendedSyntaxCharacters = '^$\\.*+?()[|'.split('');
@@ -462,7 +474,7 @@ const acceptUnicodePropertyValue = state => {
 
 const acceptLoneUnicodePropertyNameOrValue = state => {
   let loneValue = acceptUnicodePropertyValue(state);
-  return { matched: loneValue.matched && utf16LonePropertyValues.indexOf(loneValue.data) >= 0 };
+  return { matched: loneValue.matched && catchIsFalse(() => matchProperty(loneValue.data)) };
 };
 
 const acceptUnicodePropertyValueExpression = state =>
@@ -475,7 +487,7 @@ const acceptUnicodePropertyValueExpression = state =>
     if (!value.matched) {
       return { matched: false };
     }
-    return { matched: name.data in utf16NonBinaryPropertyNames && utf16NonBinaryPropertyNames[name.data].indexOf(value.data) >= 0 };
+    return { matched: catchIsFalse(() => matchPropertyValue(propertyAliases.get(name.data), value.data)) };
   }),
   backtrackOnFailure(acceptLoneUnicodePropertyNameOrValue))(state);
 
