@@ -487,7 +487,7 @@ const acceptUnicodePropertyValueExpression = state =>
     if (!value.matched) {
       return { matched: false };
     }
-    return { matched: catchIsFalse(() => matchPropertyValue(propertyAliases.get(name.data), value.data)) };
+    return { matched: catchIsFalse(() => matchPropertyValue(propertyAliases.get(name.data) || name.data, value.data)) };
   }),
   backtrackOnFailure(acceptLoneUnicodePropertyNameOrValue))(state);
 
