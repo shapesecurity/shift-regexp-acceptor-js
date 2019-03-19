@@ -174,6 +174,8 @@ suite('Parser', () => {
       /\p{ASCII}/u
       /\P{ASCII}/u
       /\p{gc=LC}/u
+      /\p{General_Category=LC}/u
+      /\p{General_Category=Cased_Letter}/u
       /\P{gc=LC}/u
       /\k/
       /\k</
