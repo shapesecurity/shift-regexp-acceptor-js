@@ -18,6 +18,8 @@
 
 import matchPropertyValue from 'unicode-match-property-value-ecmascript';
 
+import matchPropertyValueMappings from 'unicode-match-property-value-ecmascript/data/mappings';
+
 import matchProperty from 'unicode-match-property-ecmascript';
 
 import propertyAliases from 'unicode-property-aliases-ecmascript';
@@ -472,9 +474,26 @@ const acceptUnicodePropertyValue = state => {
   return { matched: characters.length > 0, data: characters.join('') };
 };
 
+// excluding nonbinary properties from mathias' list
+// https://www.ecma-international.org/ecma-262/9.0/index.html#table-nonbinary-unicode-properties
+const illegalLoneUnicodePropertyNames = [
+  'General_Category',
+  'Script',
+  'Script_Extensions',
+  'scx',
+  'sc',
+  'gc',
+];
+
+const generalCategoryValues = matchPropertyValueMappings.get('General_Category');
+
 const acceptLoneUnicodePropertyNameOrValue = state => {
   let loneValue = acceptUnicodePropertyValue(state);
-  return { matched: loneValue.matched && catchIsFalse(() => matchProperty(loneValue.data)) };
+  if (!loneValue.matched || illegalLoneUnicodePropertyNames.includes(loneValue.data)) {
+    return { matched: false };
+  }
+
+  return { matched: catchIsFalse(() => matchProperty(loneValue.data)) || generalCategoryValues.get(loneValue.data) != null };
 };
 
 const acceptUnicodePropertyValueExpression = state =>

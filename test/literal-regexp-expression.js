@@ -177,6 +177,9 @@ suite('Parser', () => {
       /\p{General_Category=LC}/u
       /\p{General_Category=Cased_Letter}/u
       /\P{gc=LC}/u
+      /\P{LC}/u
+      /\p{Other_Number}/u
+      /\p{No}/u
       /\k/
       /\k</
       /\k<x/
@@ -233,7 +236,10 @@ suite('Parser', () => {
       /(?<a>a)\k/
       /(?<a>a)\k</
       /(?<a>a)\k<a/
-      /(?<a>a)\k<x>/`);
+      /(?<a>a)\k<x>/
+      /\p{Script_Extensions}/u
+      /\p{Ahom}/u
+      /\p{gc}/u`);
     regexToPass.forEach(args => testRegexSuccess(...args));
     regexToFail.forEach(args => testRegexFailure(...args));
   });
