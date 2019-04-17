@@ -183,7 +183,12 @@ suite('Parser', () => {
       /\k/
       /\k</
       /\k<x/
-      /\k<x>/`);
+      /\k<x>/
+      /[\${'\\'}1-${'\\'}127]/
+      /${'\\'}128-9/
+      /[${'\\'}99-${'\\'}100]/
+      /[${'\\'}1279991-9]/
+      /[${'\\'}128-9]/`);
     const regexToFail = preprocessRegexList(String.raw`/[/
       /(?<=t|v|X|.|$||)*/
       /(?<!t|v|X|.|$||)*/
@@ -239,7 +244,10 @@ suite('Parser', () => {
       /(?<a>a)\k<x>/
       /\p{Script_Extensions}/u
       /\p{Ahom}/u
-      /\p{gc}/u`);
+      /\p{gc}/u
+      /[${'\\'}2-${'\\'}1]/
+      /[${'\\'}127-${'\\'}1]/
+      /[${'\\'}100-${'\\'}99]/`);
     regexToPass.forEach(args => testRegexSuccess(...args));
     regexToFail.forEach(args => testRegexFailure(...args));
   });
