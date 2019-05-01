@@ -60,7 +60,7 @@ class PatternAcceptorState {
     this.pattern = pattern;
     this.unicode = unicode;
     this.index = 0;
-    this.backreferences = [];
+    this.largestBackreference = 0;
     this.backreferenceNames = [];
     this.groupingNames = [];
     this.capturingGroups = 0;
@@ -68,6 +68,12 @@ class PatternAcceptorState {
 
   empty() {
     return this.index >= this.pattern.length;
+  }
+
+  backreference(ref) {
+    if (ref > this.largestBackreference) {
+      this.largestBackreference = ref;
+    }
   }
 
   nextCodePoint() {
@@ -190,10 +196,8 @@ export default (pattern, { unicode = false } = {}) => {
   let accepted = acceptDisjunction(state);
   if (accepted.matched) {
     if (state.unicode) {
-      for (let backreference of state.backreferences) {
-        if (backreference > state.capturingGroups) {
-          return false;
-        }
+      if (state.largestBackreference > state.capturingGroups) {
+        return false;
       }
     }
     if (state.groupingNames.length > 0 || state.unicode) {
@@ -209,12 +213,12 @@ export default (pattern, { unicode = false } = {}) => {
 
 const backtrackOnFailure = func => state => {
   let savedIndex = state.index;
-  let oldBackreferences = state.backreferences.slice(0);
+  let oldBackreference = state.largestBackreference;
   let oldCapturingGroups = state.capturingGroups;
   let val = func(state);
   if (!val.matched) {
     state.index = savedIndex;
-    state.backreferences = oldBackreferences;
+    state.largestBackreference = oldBackreference;
     state.capturingGroups = oldCapturingGroups;
   }
   return val;
@@ -427,15 +431,51 @@ const acceptGrouping = backtrackOnFailure(state => {
   return { matched: true };
 });
 
-const acceptDecimalEscape = backtrackOnFailure(state => {
-  let firstDecimal = state.eatAny(...decimalDigits.slice(1));
+const acceptDecimalEscapeBackreference = backtrackOnFailure(state => {
+  let firstDecimal = state.eatAny(...decimalDigits);
   if (firstDecimal === null) {
     return { matched: false };
   }
+  if (firstDecimal === '0') {
+    return { matched: true };
+  }
   // we also accept octal escapes here, but it is impossible to tell if it is a octal escape until all parsing is complete.
   // octal escapes are handled in acceptCharacterEscape for classes
-  state.backreferences.push(parseInt(firstDecimal + (state.eatNaturalNumber() || '')));
+  state.backreference(parseInt(firstDecimal + (state.eatNaturalNumber() || '')));
   return { matched: true };
+});
+
+const acceptDecimalEscape = backtrackOnFailure(state => {
+  let firstDigit = state.eatAny(...decimalDigits);
+  if (firstDigit === null) {
+    return { matched: false };
+  }
+  if (firstDigit === '0') {
+    return { matched: true, value: 0 };
+  }
+  if (state.unicode) {
+    return { matched: false };
+  }
+  let digits = [firstDigit];
+  let digit = state.eatAny(...decimalDigits);
+  if (digit !== null) {
+    digits.push(digit);
+    if (firstDigit === '1') {
+      if (digit === '0' || digit === '1') {
+        let lastDigit = state.eatAny(...decimalDigits);
+        if (lastDigit !== null) {
+          digits.push(lastDigit);
+        }
+      } else if (digit === '2') {
+        let lastDigit = state.eatAny(...octalDigits);
+        if (lastDigit !== null) {
+          digits.push(lastDigit);
+        }
+      }
+    }
+  }
+
+  return { matched: true, value: parseInt(digits.join('')) };
 });
 
 const acceptCharacterClassEscape = state => {
@@ -632,7 +672,7 @@ const acceptGroupName = backtrackOnFailure(state => {
 });
 
 const acceptAtomEscape = anyOf(
-  acceptDecimalEscape,
+  acceptDecimalEscapeBackreference,
   acceptCharacterClassEscape,
   acceptCharacterEscape,
   acceptGroupNameBackreference
@@ -648,12 +688,7 @@ const acceptCharacterClass = backtrackOnFailure(state => {
     subState => {
       return { matched: !!subState.eat('b'), value: 0x0008 };
     },
-    subState => {
-      if (!subState.unicode) {
-        return { matched: false };
-      }
-      return acceptDecimalEscape(subState);
-    },
+    acceptDecimalEscape,
     subState => {
       return { matched: subState.unicode && !!subState.eat('-'), value: '-'.charCodeAt(0) };
     },
