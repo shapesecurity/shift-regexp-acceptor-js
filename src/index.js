@@ -45,7 +45,7 @@ const hexDigits = '0123456789abcdefABCDEF'.split('');
 const decimalDigits = '0123456789'.split('');
 const octalDigits = '01234567'.split('');
 
-const INVALID_NAMED_BACKREFERENCE_SENTINEL = { INVALID_NAMED_BACKREFERENCE_SENTINE: true };
+const INVALID_NAMED_BACKREFERENCE_SENTINEL = {};
 
 function isIdentifierStart(ch) {
   return ch < 128 ? idStartBool[ch] : idStartLargeRegex.test(String.fromCodePoint(ch));
@@ -669,7 +669,14 @@ const acceptCharacterClass = backtrackOnFailure(state => {
       return { matched: true, value: character.charCodeAt(0) % 32 };
     }),
     acceptCharacterClassEscape,
-    acceptCharacterEscape
+    acceptCharacterEscape,
+    // We special-case `\k` because `acceptCharacterEscape` rejects `\k` unconditionally,
+    // deferring `\k` to acceptGroupNameBackreference, which is not called here.
+    // See also https://github.com/tc39/ecma262/issues/2037. This code takes the route of
+    // making it unconditionally legal, rather than legal only in the absence of a group name.
+    subState => {
+      return { matched: !subState.unicode && !!subState.eat('k'), value: 107 };
+    },
   );
 
   const acceptClassAtomNoDash = localState => {
