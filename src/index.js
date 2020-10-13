@@ -16,15 +16,15 @@
 
 /* eslint-disable no-use-before-define */
 
-import matchPropertyValue from 'unicode-match-property-value-ecmascript';
+const matchPropertyValue = require('unicode-match-property-value-ecmascript');
 
-import matchPropertyValueMappings from 'unicode-match-property-value-ecmascript/data/mappings';
+const matchPropertyValueMappings = require('unicode-match-property-value-ecmascript/data/mappings');
 
-import matchProperty from 'unicode-match-property-ecmascript';
+const matchProperty = require('unicode-match-property-ecmascript');
 
-import propertyAliases from 'unicode-property-aliases-ecmascript';
+const propertyAliases = require('unicode-property-aliases-ecmascript');
 
-import { idContinueBool, idContinueLargeRegex, idStartBool, idStartLargeRegex } from './unicode';
+const { idContinueBool, idContinueLargeRegex, idStartBool, idStartLargeRegex } = require('./unicode');
 
 const catchIsFalse = predicate => {
   try {
@@ -191,7 +191,7 @@ class PatternAcceptorState {
 }
 
 // acceptRegex
-export default (pattern, { unicode = false } = {}) => {
+module.exports = (pattern, { unicode = false } = {}) => {
   let state = new PatternAcceptorState(pattern, unicode);
   let accepted = acceptDisjunction(state);
   if (accepted.matched) {
@@ -676,7 +676,7 @@ const acceptCharacterClass = backtrackOnFailure(state => {
     // making it unconditionally legal, rather than legal only in the absence of a group name.
     subState => {
       return { matched: !subState.unicode && !!subState.eat('k'), value: 107 };
-    },
+    }
   );
 
   const acceptClassAtomNoDash = localState => {

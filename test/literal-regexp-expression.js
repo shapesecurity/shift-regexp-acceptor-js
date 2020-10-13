@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { testRegexSuccess, testRegexFailure } from './helpers';
+const { testRegexSuccess, testRegexFailure } = require('./helpers');
 
 suite('Parser', () => {
 

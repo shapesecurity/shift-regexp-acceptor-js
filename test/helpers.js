@@ -15,9 +15,9 @@
  */
 
 
-import acceptRegex from '..';
+const acceptRegex = require('..');
 
-export const testRegexSuccess = (source, unicode = false) => {
+exports.testRegexSuccess = (source, unicode = false) => {
   test('regex is accepted', () => {
     if (!acceptRegex(source, { unicode })) {
       throw new Error(`Failed to accept RegEx: /${source}/${unicode ? 'u' : ''}`);
@@ -25,7 +25,7 @@ export const testRegexSuccess = (source, unicode = false) => {
   });
 };
 
-export const testRegexFailure = (source, unicode = false) => {
+exports.testRegexFailure = (source, unicode = false) => {
   test('regex is not accepted', () => {
     if (acceptRegex(source, { unicode })) {
       throw new Error(`Failed to fail RegEx: /${source}/${unicode ? 'u' : ''}`);

@@ -6,6 +6,6 @@ script:
   - if [ -n "$(git status --porcelain)" ]; then echo "repo is dirty"; exit 1; fi
   - npm test
 node_js:
-  - "6"
-  - "8"
   - "10"
+  - "12"
+  - "14"
